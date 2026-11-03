@@ -1277,39 +1277,52 @@ async function loadMyChats() {
     if (error) throw error;
 
     container.innerHTML = (conversations || []).map(chat => `
-      <button class="card"
-        data-open-chat="${chat.id}"
-        style="
-          width:100%;
-          display:flex;
-          align-items:center;
-          gap:14px;
-          text-align:left;
-          margin-bottom:10px;
-          cursor:pointer;
-        ">
+      <div class="card"
+        style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
 
-        <div class="avatar">
-          ${chat.is_group ? "👥" : "💬"}
-        </div>
+        <button
+          type="button"
+          data-open-chat="${esc(chat.id)}"
+          style="flex:1;display:flex;align-items:center;gap:14px;
+          text-align:left;background:transparent;border:0;color:inherit;
+          cursor:pointer;padding:8px;">
 
-        <div style="flex:1">
-          <strong>
-            ${esc(chat.title || "Privater Chat")}
-          </strong>
-
-          <div class="muted">
-            ${chat.is_group ? "Gruppenchat" : "Privater Chat"}
+          <div class="avatar">
+            ${chat.is_group ? "👥" : "💬"}
           </div>
-        </div>
 
-        <span>›</span>
+          <div style="flex:1">
+            <strong>${esc(chat.title || "Privater Chat")}</strong>
+            <div class="muted">
+              ${chat.is_group ? "Gruppenchat" : "Privater Chat"}
+            </div>
+          </div>
 
-      </button>
+          <span>›</span>
+        </button>
+
+        <button
+          type="button"
+          data-delete-chat="${esc(chat.id)}"
+          data-group="${chat.is_group ? "true" : "false"}"
+          title="Chat löschen"
+          style="padding:10px;border:0;border-radius:10px;
+          background:#35233b;color:#ff7777;cursor:pointer;">
+          🗑️
+        </button>
+
+      </div>
     `).join("");
 
     container.querySelectorAll("[data-open-chat]").forEach(button => {
       button.onclick = () => openChat(button.dataset.openChat, false);
+    });
+
+    container.querySelectorAll("[data-delete-chat]").forEach(button => {
+      button.onclick = () => deleteChat(
+        button.dataset.deleteChat,
+        button.dataset.group === "true"
+      );
     });
 
   } catch (error) {
@@ -1470,6 +1483,40 @@ async function openChat(chatId, readOnly = false) {
       "Chat konnte nicht geöffnet werden: " + error.message,
       true
     );
+  }
+}
+
+// ============================================
+// CHAT LÖSCHEN / GRUPPE VERLASSEN
+// ============================================
+
+async function deleteChat(chatId, isGroup) {
+  const question = isGroup
+    ? "Möchtest du die Gruppe wirklich verlassen? Sie bleibt für die anderen Mitglieder bestehen."
+    : "ACHTUNG: Möchtest du diesen privaten Chat für ALLE Teilnehmer und alle Nachrichten endgültig löschen?";
+
+  if (!confirm(question)) return;
+
+  try {
+    const { error } = await db.rpc("delete_my_chat", {
+      p_conversation_id: chatId
+    });
+
+    if (error) throw error;
+
+    if (currentChatId === chatId) {
+      clearInterval(chatRefreshTimer);
+      currentChatId = null;
+    }
+
+    await loadMyChats();
+
+    alert(isGroup
+      ? "Du hast die Gruppe verlassen."
+      : "Der private Chat wurde für alle gelöscht.");
+
+  } catch (error) {
+    alert("Chat konnte nicht gelöscht werden: " + error.message);
   }
 }
 
